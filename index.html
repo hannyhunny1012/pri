@@ -1,0 +1,738 @@
+<title>バンド予定帳</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=IBM+Plex+Mono:wght@500;600&family=Zen+Kaku+Gothic+New:wght@400;500;700&display=swap">
+<style>
+/* Layout: band header bar, then the month grid with a day sheet docked to the right (stacks below on phones) */
+:root{
+  --bg:#eceff3; --surface:#fbfcfd; --ink:#14171c; --muted:#5b6270; --line:#d4d9e1; --hover:#e3e8f0;
+  --accent:#2448d8; --accent-ink:#ffffff;
+  --ok:#1b8049; --okbg:#ddf1e4; --maybe:#a8700f; --ng:#c8372b;
+  --sun:#c8372b; --sat:#2448d8; --dim:#a2a8b3;
+  --m1:#e0532f; --m2:#bf8204; --m3:#12877a; --m4:#7a4be0;
+  --k-live:#c8372b; --k-reh:#2448d8; --k-rec:#7a4be0; --k-mtg:#12877a; --k-other:#5b6270;
+  --f-display:"Dela Gothic One","Hiragino Sans","Noto Sans JP",sans-serif;
+  --f-body:"Zen Kaku Gothic New","Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+  --r:10px;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#0f1115; --surface:#171a20; --ink:#e9ecf1; --muted:#9aa2b0; --line:#2a2f38; --hover:#20252e;
+  --accent:#7d95ff; --accent-ink:#0c0f1c;
+  --ok:#4cc483; --okbg:#15301f; --maybe:#e2a93b; --ng:#ff6b5c;
+  --sun:#ff7a6b; --sat:#8ea3ff; --dim:#555d6a;
+  --m1:#ff7a55; --m2:#f0b52e; --m3:#3cc7b4; --m4:#a382ff;
+  --k-live:#ff6b5c; --k-reh:#7d95ff; --k-rec:#a382ff; --k-mtg:#3cc7b4; --k-other:#9aa2b0;
+  color-scheme:dark;
+}}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --surface:#171a20; --ink:#e9ecf1; --muted:#9aa2b0; --line:#2a2f38; --hover:#20252e;
+  --accent:#7d95ff; --accent-ink:#0c0f1c;
+  --ok:#4cc483; --okbg:#15301f; --maybe:#e2a93b; --ng:#ff6b5c;
+  --sun:#ff7a6b; --sat:#8ea3ff; --dim:#555d6a;
+  --m1:#ff7a55; --m2:#f0b52e; --m3:#3cc7b4; --m4:#a382ff;
+  --k-live:#ff6b5c; --k-reh:#7d95ff; --k-rec:#a382ff; --k-mtg:#3cc7b4; --k-other:#9aa2b0;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;padding-inline:16px;padding-block:16px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+
+/* header */
+.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between}
+.brand{display:flex;flex-direction:column;min-width:0}
+.eyebrow{font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.band{font-family:var(--f-display);font-size:clamp(22px,4vw,30px);line-height:1.15;margin:0;overflow-wrap:anywhere}
+.me{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--muted)}
+.me select{padding:6px 8px;border:1px solid var(--line);border-radius:8px;background:var(--surface)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:6px 12px;font-size:13px}
+.btn:hover{background:var(--hover)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700}
+.btn.danger{color:var(--ng);border-color:var(--ng)}
+.btn.ghost{border-color:transparent;background:transparent}
+.btn[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+.notice{border:1px dashed var(--line);border-radius:var(--r);padding:10px 14px;font-size:13px;color:var(--muted);background:var(--surface)}
+.notice strong{color:var(--ink)}
+
+/* toolbar */
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px}
+.month{font-family:var(--f-display);font-size:24px;margin:0;min-width:7.5em}
+.month .mono{font-family:inherit}
+.nav{display:flex;gap:6px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted);margin-left:auto}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:10px;height:10px;border-radius:3px;background:var(--c)}
+.sw.okcell{background:var(--okbg);border:1px solid var(--ok)}
+
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:16px;align-items:start}
+@media (max-width:900px){.layout{grid-template-columns:minmax(0,1fr)}}
+
+/* calendar */
+.cal{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.paintnote{background:var(--ink);color:var(--bg);font-size:13px;padding:8px 12px}
+.wk{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border-bottom:1px solid var(--line)}
+.wk div{font-size:12px;text-align:center;padding:6px 0;color:var(--muted);font-weight:700}
+.wk div:first-child{color:var(--sun)} .wk div:last-child{color:var(--sat)}
+.grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr))}
+.cell{all:unset;box-sizing:border-box;cursor:pointer;min-height:104px;padding:6px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:3px;min-width:0;position:relative}
+.cell:nth-child(7n){border-right:0}
+.cell:hover{background:var(--hover)}
+.cell:focus-visible{outline:2px solid var(--accent);outline-offset:-2px}
+.cell.allok{background:var(--okbg)}
+.cell.sel{box-shadow:inset 0 0 0 2px var(--accent)}
+.dnum{font-family:var(--f-mono);font-weight:600;font-size:13px;display:flex;align-items:center;gap:6px}
+.cell.w0 .dnum{color:var(--sun)} .cell.w6 .dnum{color:var(--sat)}
+.cell.out .dnum{color:var(--dim)}
+.cell.today .dnum span:first-child{background:var(--ink);color:var(--bg);border-radius:6px;padding:0 5px}
+.okflag{font-size:10px;font-family:var(--f-body);font-weight:700;color:var(--ok);letter-spacing:.04em}
+.chip{display:block;font-size:11.5px;line-height:1.35;padding:1px 5px;border-radius:4px;background:color-mix(in srgb,var(--kc) 14%,transparent);color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-left:3px solid var(--kc)}
+.chip b{font-family:var(--f-mono);font-weight:600;margin-right:4px;font-size:10.5px}
+.more{font-size:11px;color:var(--muted)}
+.marks{margin-top:auto;display:flex;gap:3px}
+.mk{font-style:normal;font-size:10px;line-height:14px;width:15px;height:15px;text-align:center;border-radius:4px;border:1px solid var(--c);color:var(--c);font-weight:700}
+.mk.none{border-style:dashed;opacity:.45;color:transparent}
+.mk.ng{background:var(--c);color:var(--surface)}
+.cell.out .chip,.cell.out .marks{opacity:.55}
+@media (max-width:640px){
+  .cell{min-height:74px;padding:4px 3px}
+  .chip{font-size:0;padding:0;height:5px;border-left:0;background:var(--kc)}
+  .chip b{display:none}
+  .marks{gap:2px}.mk{width:9px;height:9px;font-size:0;border-radius:2px}
+  .okflag{display:none}
+  .legend{margin-left:0}
+}
+
+/* side sheet */
+.sheet{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:16px;display:flex;flex-direction:column;gap:18px;min-width:0}
+.sheet h2{font-size:20px;margin:0;font-family:var(--f-display);font-weight:400}
+.sec{display:flex;flex-direction:column;gap:8px}
+.sec h3{margin:0;font-size:11px;letter-spacing:.14em;color:var(--muted);font-weight:700;text-transform:uppercase;display:flex;justify-content:space-between;align-items:center}
+.summary{font-size:13px;color:var(--muted)}
+.summary.allok{color:var(--ok);font-weight:700}
+.mrow{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:center;gap:8px;padding:6px 8px;border-radius:8px}
+.mrow.isme{background:var(--hover)}
+.who{display:flex;align-items:center;gap:8px;min-width:0}
+.dot{width:12px;height:12px;border-radius:50%;background:var(--c);flex:none}
+.who .nm{font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.who .pt{font-size:12px;color:var(--muted);white-space:nowrap}
+.seg{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;background:transparent;width:34px;height:30px;font-weight:700;font-size:15px;color:var(--muted)}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed="true"].ok{background:var(--ok);color:var(--surface)}
+.seg button[aria-pressed="true"].maybe{background:var(--maybe);color:var(--surface)}
+.seg button[aria-pressed="true"].ng{background:var(--ng);color:var(--surface)}
+.seg button:disabled{cursor:default}
+.evs{display:flex;flex-direction:column;gap:8px;list-style:none;margin:0;padding:0}
+.ev{border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.ev .line1{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.tag{font-size:10.5px;font-weight:700;letter-spacing:.06em;padding:1px 6px;border-radius:4px;background:var(--kc);color:var(--surface)}
+.ev .time{font-family:var(--f-mono);font-size:13px;color:var(--muted)}
+.ev .title{font-weight:700;overflow-wrap:anywhere}
+.ev .meta{font-size:13px;color:var(--muted);overflow-wrap:anywhere;white-space:pre-wrap}
+.ev .acts{display:flex;gap:6px;justify-content:flex-end;flex-wrap:wrap;align-items:center}
+.ev .acts .q{font-size:12px;color:var(--ng);margin-right:auto}
+.empty{font-size:13px;color:var(--muted);margin:0}
+
+form.f{display:flex;flex-direction:column;gap:10px}
+.fr{display:flex;flex-direction:column;gap:4px;min-width:0}
+.fr label{font-size:12px;color:var(--muted);font-weight:700}
+.fr input,.fr select,.fr textarea{width:100%;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg)}
+.fr textarea{min-height:64px;resize:vertical}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.facts{display:flex;gap:8px;justify-content:flex-end}
+
+/* upcoming */
+.up{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+.up h3{margin:0 0 8px;font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase}
+.up ol{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+.up li button{all:unset;cursor:pointer;display:grid;grid-template-columns:auto auto minmax(0,1fr);gap:10px;align-items:baseline;padding:7px 4px;border-top:1px solid var(--line);width:100%;box-sizing:border-box}
+.up li:first-child button{border-top:0}
+.up li button:hover{background:var(--hover)}
+.up li button:focus-visible{outline:2px solid var(--accent)}
+.up .d{font-family:var(--f-mono);font-size:13px;white-space:nowrap;min-width:9.5em}
+.up .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* setup */
+.setup{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px;max-width:620px}
+.setup h2{font-family:var(--f-display);font-weight:400;font-size:22px;margin:0 0 4px}
+.setup p{margin:0 0 14px;color:var(--muted);font-size:14px;max-width:60ch}
+.memrows{display:flex;flex-direction:column;gap:8px}
+.memrow{display:grid;grid-template-columns:14px minmax(0,1.4fr) minmax(0,1fr);gap:8px;align-items:center}
+.memrow input{padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);width:100%}
+
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:10px;font-size:13px;max-width:min(92vw,520px);z-index:10}
+.loading{color:var(--muted);font-size:14px;padding:30px 0}
+@media (prefers-reduced-motion:no-preference){.cell,.btn{transition:background-color .12s}}
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <span class="eyebrow">Band schedule</span>
+      <h1 class="band" id="band-name">バンド予定帳</h1>
+    </div>
+    <div class="me" id="me-box" hidden>
+      <label for="me-select">わたしは</label>
+      <select id="me-select"></select>
+      <button class="btn" type="button" id="open-settings">メンバー設定</button>
+    </div>
+  </header>
+
+  <div class="notice" id="mode-note" hidden></div>
+  <p class="loading" id="loading">予定を読み込んでいます…</p>
+
+  <section class="setup" id="setup" hidden aria-labelledby="setup-title">
+    <h2 id="setup-title">バンドを登録</h2>
+    <p id="setup-lead">バンド名と4人の名前を入れると、カレンダーが使えるようになります。あとから「メンバー設定」で変更できます。</p>
+    <form class="f" id="band-form" autocomplete="off">
+      <div class="fr"><label for="bf-name">バンド名</label><input id="bf-name" maxlength="60" required placeholder="例: The Midnight Rehearsal"></div>
+      <div class="fr"><label>メンバー（名前・パート）</label>
+        <div class="memrows">
+          <div class="memrow"><span class="dot" style="--c:var(--m1)"></span><input id="bf-m1-name" maxlength="30" placeholder="名前"><input id="bf-m1-part" maxlength="20" placeholder="Vo / Gt など"></div>
+          <div class="memrow"><span class="dot" style="--c:var(--m2)"></span><input id="bf-m2-name" maxlength="30" placeholder="名前"><input id="bf-m2-part" maxlength="20" placeholder="パート"></div>
+          <div class="memrow"><span class="dot" style="--c:var(--m3)"></span><input id="bf-m3-name" maxlength="30" placeholder="名前"><input id="bf-m3-part" maxlength="20" placeholder="パート"></div>
+          <div class="memrow"><span class="dot" style="--c:var(--m4)"></span><input id="bf-m4-name" maxlength="30" placeholder="名前"><input id="bf-m4-part" maxlength="20" placeholder="パート"></div>
+        </div>
+      </div>
+      <div class="facts">
+        <button class="btn" type="button" id="bf-cancel" hidden>閉じる</button>
+        <button class="btn primary" type="submit" id="bf-save">保存する</button>
+      </div>
+    </form>
+  </section>
+
+  <main id="main" hidden>
+    <div class="wrap">
+      <div class="bar">
+        <h2 class="month" id="month-title" aria-live="polite"></h2>
+        <div class="nav">
+          <button class="btn" type="button" id="prev" aria-label="前の月">‹ 前月</button>
+          <button class="btn" type="button" id="today">今日</button>
+          <button class="btn" type="button" id="next" aria-label="次の月">翌月 ›</button>
+        </div>
+        <button class="btn" type="button" id="paint" aria-pressed="false">空きをまとめて入力</button>
+        <div class="legend" id="legend"></div>
+      </div>
+
+      <div class="layout">
+        <div class="cal">
+          <div class="paintnote" id="paint-note" hidden></div>
+          <div class="wk"><div>日</div><div>月</div><div>火</div><div>水</div><div>木</div><div>金</div><div>土</div></div>
+          <div class="grid" id="grid"></div>
+        </div>
+
+        <aside class="sheet" id="sheet" aria-labelledby="day-title">
+          <h2 id="day-title"></h2>
+          <div class="sec">
+            <h3>空き状況 <span class="summary" id="day-summary"></span></h3>
+            <div id="day-avail"></div>
+          </div>
+          <div class="sec">
+            <h3>予定 <button class="btn" type="button" id="add-ev">＋ 予定を追加</button></h3>
+            <ul class="evs" id="day-events"></ul>
+            <form class="f" id="ev-form" hidden autocomplete="off">
+              <div class="fr"><label for="ev-title">タイトル</label><input id="ev-title" maxlength="80" required placeholder="例: 定期リハ"></div>
+              <div class="two">
+                <div class="fr"><label for="ev-kind">種類</label><select id="ev-kind"></select></div>
+                <div class="fr"><label for="ev-date">日付</label><input id="ev-date" type="date" required></div>
+              </div>
+              <div class="two">
+                <div class="fr"><label for="ev-start">開始</label><input id="ev-start" type="time"></div>
+                <div class="fr"><label for="ev-end">終了</label><input id="ev-end" type="time"></div>
+              </div>
+              <div class="fr"><label for="ev-place">場所</label><input id="ev-place" maxlength="80" placeholder="スタジオ名・会場名"></div>
+              <div class="fr"><label for="ev-memo">メモ</label><textarea id="ev-memo" maxlength="1000" placeholder="持ち物、入り時間、セトリなど"></textarea></div>
+              <div class="facts">
+                <button class="btn" type="button" id="ev-cancel">やめる</button>
+                <button class="btn primary" type="submit" id="ev-save">保存する</button>
+              </div>
+            </form>
+          </div>
+        </aside>
+      </div>
+
+      <section class="up" aria-labelledby="up-title">
+        <h3 id="up-title">これからの予定</h3>
+        <ol id="upcoming"></ol>
+        <p class="empty" id="up-empty" hidden>今日以降の予定はまだありません。日付を選んで「予定を追加」から登録できます。</p>
+      </section>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(() => {
+  "use strict";
+  const SLOTS = ["m1", "m2", "m3", "m4"];
+  const KINDS = [
+    { id: "reh", label: "リハ" }, { id: "live", label: "ライブ" }, { id: "rec", label: "録音" },
+    { id: "mtg", label: "MTG" }, { id: "other", label: "その他" },
+  ];
+  const MARKS = [
+    { id: "ok", sym: "○", label: "空いてる" },
+    { id: "maybe", sym: "△", label: "調整すれば行ける" },
+    { id: "ng", sym: "×", label: "無理" },
+  ];
+  const CYCLE = [null, "ok", "maybe", "ng"];
+  const WD = ["日", "月", "火", "水", "木", "金", "土"];
+  const LS_ME = "band-cal:me";
+
+  const $ = (s) => document.querySelector(s);
+  const pad = (n) => String(n).padStart(2, "0");
+  const ymd = (y, m, d) => `${y}-${pad(m + 1)}-${pad(d)}`;
+  const toDate = (s) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+  const todayStr = () => { const t = new Date(); return ymd(t.getFullYear(), t.getMonth(), t.getDate()); };
+  const isDate = (s) => typeof s === "string" && /^\d{4}-\d{2}-\d{2}$/.test(s);
+  const str = (v, max) => (typeof v === "string" ? v.slice(0, max) : "");
+  const kindOf = (id) => KINDS.find((k) => k.id === id) || KINDS[KINDS.length - 1];
+  const markOf = (id) => MARKS.find((m) => m.id === id) || null;
+  const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
+  const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch {} };
+
+  function h(tag, attrs, ...kids) {
+    const el = document.createElement(tag);
+    for (const [k, v] of Object.entries(attrs || {})) {
+      if (v == null || v === false) continue;
+      if (k === "class") el.className = v;
+      else if (k === "style") el.setAttribute("style", v);
+      else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+      else el.setAttribute(k, v === true ? "" : v);
+    }
+    for (const c of kids.flat()) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
+    return el;
+  }
+
+  const now = new Date();
+  const state = {
+    mode: "loading", canWrite: true,
+    cfg: null, cfgLoaded: false,
+    events: [], byDate: new Map(), avail: new Map(),
+    y: now.getFullYear(), m: now.getMonth(), sel: todayStr(),
+    me: lsGet(LS_ME), paint: false, editing: null, confirmDel: null, settingsOpen: false,
+  };
+  let store = null;
+
+  /* ---------- toast ---------- */
+  let toastTimer;
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => (t.hidden = true), 3800);
+  }
+  function writeFailed(e) {
+    const code = e && e.code;
+    if (code === "invalid_argument") {
+      state.canWrite = false; renderAll();
+      toast("書き込む権限がありません。オーナーに「編集者」として招待してもらってください。");
+    } else if (code === "quota_exceeded") toast("保存できる量の上限に達しました。古い予定を削除してから試してください。");
+    else toast("保存できませんでした。通信状況を確認して、もう一度試してください。");
+  }
+
+  /* ---------- stores ---------- */
+  function makeDbStore(db) {
+    const queues = new Map();
+    const serial = (key, fn) => {
+      const p = (queues.get(key) || Promise.resolve()).catch(() => {}).then(fn);
+      queues.set(key, p); return p;
+    };
+    return {
+      watchCfg(cb) {
+        let settled = false;
+        const timer = setTimeout(() => { if (!settled) { settled = true; cb(null); } }, 8000);
+        db.doc("band/info").onSnapshot((s) => {
+          if (!s.exists && s.metadata.fromCache && !settled) return;
+          settled = true; clearTimeout(timer); cb(s.exists ? s.data() : null);
+        }, () => { clearTimeout(timer); toast("共有データに接続できなくなりました。ページを開き直してください。"); });
+      },
+      watchEvents(cb) {
+        db.collection("events").onSnapshot((q) => cb(q.docs.map((d) => ({ id: d.id, ...d.data() }))), () => {});
+      },
+      watchAvail(cb) {
+        db.collection("avail").onSnapshot((q) => cb(q.docs.map((d) => d.data())), () => {});
+      },
+      saveCfg: (c) => serial("cfg", () => db.doc("band/info").set(c)),
+      saveEvent(ev) {
+        const { id, ...body } = ev;
+        const ref = id ? db.collection("events").doc(id) : db.collection("events").doc();
+        return serial("ev:" + ref.id, () => ref.set(body));
+      },
+      deleteEvent: (id) => serial("ev:" + id, () => db.collection("events").doc(id).delete()),
+      setMark(date, member, mark) {
+        const ref = db.doc(`avail/${date}_${member}`);
+        return serial(ref.path, () => (mark ? ref.set({ date, member, mark }) : ref.delete()));
+      },
+    };
+  }
+
+  function makeLocalStore() {
+    const KEY = "band-cal:local-v1";
+    let data = { cfg: null, events: {}, avail: {} };
+    try { const raw = lsGet(KEY); if (raw) data = Object.assign(data, JSON.parse(raw)); } catch {}
+    const subs = { cfg: [], events: [], avail: [] };
+    const save = () => lsSet(KEY, JSON.stringify(data));
+    const emit = (k) => {
+      if (k === "cfg") subs.cfg.forEach((f) => f(data.cfg));
+      if (k === "events") subs.events.forEach((f) => f(Object.entries(data.events).map(([id, v]) => ({ id, ...v }))));
+      if (k === "avail") subs.avail.forEach((f) => f(Object.values(data.avail)));
+    };
+    const later = (k) => Promise.resolve().then(() => emit(k));
+    return {
+      watchCfg(cb) { subs.cfg.push(cb); later("cfg"); },
+      watchEvents(cb) { subs.events.push(cb); later("events"); },
+      watchAvail(cb) { subs.avail.push(cb); later("avail"); },
+      async saveCfg(c) { data.cfg = c; save(); emit("cfg"); },
+      async saveEvent(ev) {
+        const { id, ...body } = ev;
+        data.events[id || "e" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6)] = body;
+        save(); emit("events");
+      },
+      async deleteEvent(id) { delete data.events[id]; save(); emit("events"); },
+      async setMark(date, member, mark) {
+        const k = `${date}_${member}`;
+        if (mark) data.avail[k] = { date, member, mark }; else delete data.avail[k];
+        save(); emit("avail");
+      },
+    };
+  }
+
+  /* ---------- derived data ---------- */
+  function members() {
+    const list = (state.cfg && Array.isArray(state.cfg.members)) ? state.cfg.members : [];
+    return SLOTS.map((id) => {
+      const m = list.find((x) => x && x.id === id) || {};
+      return { id, name: str(m.name, 30).trim(), part: str(m.part, 20).trim() };
+    }).filter((m) => m.name);
+  }
+  function setEvents(list) {
+    state.events = list.filter((e) => e && isDate(e.date)).map((e) => ({
+      id: e.id, date: e.date, title: str(e.title, 80) || "(無題)", kind: kindOf(e.kind).id,
+      start: str(e.start, 5), end: str(e.end, 5), place: str(e.place, 80), memo: str(e.memo, 1000),
+    }));
+    state.byDate = new Map();
+    for (const e of state.events) {
+      if (!state.byDate.has(e.date)) state.byDate.set(e.date, []);
+      state.byDate.get(e.date).push(e);
+    }
+    for (const arr of state.byDate.values()) arr.sort((a, b) => (a.start || "99").localeCompare(b.start || "99"));
+  }
+  function setAvail(list) {
+    state.avail = new Map();
+    for (const a of list) {
+      if (!a || !isDate(a.date) || !SLOTS.includes(a.member) || !markOf(a.mark)) continue;
+      if (!state.avail.has(a.date)) state.avail.set(a.date, {});
+      state.avail.get(a.date)[a.member] = a.mark;
+    }
+  }
+  const markFor = (date, mid) => (state.avail.get(date) || {})[mid] || null;
+  function allOk(date) {
+    const ms = members();
+    return ms.length > 0 && ms.every((m) => markFor(date, m.id) === "ok");
+  }
+
+  /* ---------- rendering ---------- */
+  function renderAll() {
+    const hasCfg = !!state.cfg;
+    $("#loading").hidden = state.cfgLoaded;
+    $("#setup").hidden = !state.cfgLoaded || (hasCfg && !state.settingsOpen);
+    $("#main").hidden = !hasCfg;
+    $("#me-box").hidden = !hasCfg;
+    $("#band-name").textContent = (state.cfg && str(state.cfg.name, 60)) || "バンド予定帳";
+    renderNote();
+    if (!hasCfg) return;
+    renderMe(); renderLegend(); renderGrid(); renderSheet(); renderUpcoming();
+  }
+
+  function renderNote() {
+    const n = $("#mode-note");
+    n.replaceChildren();
+    if (state.mode === "local") {
+      n.append(h("strong", {}, "このブラウザだけに保存しています。"),
+        " 共有されたリンクから開くと、メンバー全員で同じカレンダーを見られます。");
+      n.hidden = false;
+    } else if (state.mode === "shared" && !state.canWrite) {
+      n.append(h("strong", {}, "閲覧のみです。"),
+        " 予定や空き状況を書き込むには、オーナーに「編集者」として招待してもらってください。");
+      n.hidden = false;
+    } else n.hidden = true;
+  }
+
+  function renderMe() {
+    const sel = $("#me-select");
+    const ms = members();
+    if (state.me && !ms.some((m) => m.id === state.me)) state.me = null;
+    sel.replaceChildren(h("option", { value: "" }, "選択してください"),
+      ...ms.map((m) => h("option", { value: m.id, selected: m.id === state.me }, m.name + (m.part ? `（${m.part}）` : ""))));
+    sel.value = state.me || "";
+    $("#open-settings").hidden = !state.canWrite;
+  }
+
+  function renderLegend() {
+    const lg = $("#legend");
+    lg.replaceChildren(
+      ...members().map((m) => h("span", {}, h("i", { class: "sw", style: `--c:var(--${m.id})` }), m.name)),
+      h("span", {}, h("i", { class: "sw okcell" }), "全員○"),
+    );
+    const pb = $("#paint");
+    pb.hidden = !state.canWrite;
+    pb.setAttribute("aria-pressed", String(state.paint));
+    const note = $("#paint-note");
+    note.hidden = !state.paint;
+    if (state.paint) {
+      const me = members().find((m) => m.id === state.me);
+      note.textContent = me
+        ? `${me.name}さんの空きを入力中。日付をタップするたびに ○ → △ → × → 未入力 と切り替わります。`
+        : "先に右上の「わたしは」で自分の名前を選んでください。";
+    }
+  }
+
+  function renderGrid() {
+    $("#month-title").textContent = `${state.y}年${state.m + 1}月`;
+    const grid = $("#grid");
+    const first = new Date(state.y, state.m, 1);
+    const offset = first.getDay();
+    const days = new Date(state.y, state.m + 1, 0).getDate();
+    const total = Math.ceil((offset + days) / 7) * 7;
+    const today = todayStr();
+    const ms = members();
+    const cells = [];
+    for (let i = 0; i < total; i++) {
+      const d = new Date(state.y, state.m, 1 - offset + i);
+      const ds = ymd(d.getFullYear(), d.getMonth(), d.getDate());
+      const evs = state.byDate.get(ds) || [];
+      const ok = allOk(ds);
+      const cls = ["cell", "w" + d.getDay()];
+      if (d.getMonth() !== state.m) cls.push("out");
+      if (ds === today) cls.push("today");
+      if (ds === state.sel) cls.push("sel");
+      if (ok) cls.push("allok");
+      const label = `${d.getMonth() + 1}月${d.getDate()}日(${WD[d.getDay()]})` +
+        (evs.length ? `、予定${evs.length}件` : "") + (ok ? "、全員空き" : "");
+      cells.push(h("button", { type: "button", class: cls.join(" "), "data-date": ds, "aria-label": label },
+        h("span", { class: "dnum" }, h("span", {}, d.getDate()), ok ? h("span", { class: "okflag" }, "全員○") : null),
+        evs.slice(0, 2).map((e) => h("span", { class: "chip", style: `--kc:var(--k-${e.kind})` },
+          e.start ? h("b", {}, e.start) : null, e.title)),
+        evs.length > 2 ? h("span", { class: "more" }, `ほか${evs.length - 2}件`) : null,
+        ms.length ? h("span", { class: "marks", "aria-hidden": "true" }, ms.map((m) => {
+          const mk = markFor(ds, m.id);
+          return h("i", { class: "mk " + (mk || "none"), style: `--c:var(--${m.id})`, title: `${m.name}: ${markOf(mk)?.label || "未入力"}` },
+            markOf(mk)?.sym || "・");
+        })) : null,
+      ));
+    }
+    grid.replaceChildren(...cells);
+  }
+
+  function renderSheet() {
+    const d = toDate(state.sel);
+    $("#day-title").textContent = `${d.getMonth() + 1}月${d.getDate()}日（${WD[d.getDay()]}）`;
+    const ms = members();
+    const counts = { ok: 0, maybe: 0, ng: 0, none: 0 };
+    ms.forEach((m) => counts[markFor(state.sel, m.id) || "none"]++);
+    const sum = $("#day-summary");
+    sum.className = "summary" + (allOk(state.sel) ? " allok" : "");
+    sum.textContent = allOk(state.sel) ? "全員○" : `○${counts.ok} △${counts.maybe} ×${counts.ng}` + (counts.none ? ` 未${counts.none}` : "");
+
+    $("#day-avail").replaceChildren(...ms.map((m) => {
+      const cur = markFor(state.sel, m.id);
+      return h("div", { class: "mrow" + (m.id === state.me ? " isme" : "") },
+        h("div", { class: "who" }, h("span", { class: "dot", style: `--c:var(--${m.id})` }),
+          h("span", { class: "nm" }, m.name), m.part ? h("span", { class: "pt" }, m.part) : null,
+          m.id === state.me ? h("span", { class: "pt" }, "（自分）") : null),
+        h("div", { class: "seg", role: "group", "aria-label": `${m.name}の空き` }, MARKS.map((mk) =>
+          h("button", {
+            type: "button", class: mk.id, "aria-pressed": String(cur === mk.id), title: mk.label,
+            "aria-label": `${m.name}: ${mk.label}`, disabled: !state.canWrite,
+            onclick: () => setMark(state.sel, m.id, cur === mk.id ? null : mk.id),
+          }, mk.sym))),
+      );
+    }));
+
+    const evs = state.byDate.get(state.sel) || [];
+    const list = $("#day-events");
+    list.replaceChildren(...evs.map((e) => {
+      const time = e.start ? `${e.start}${e.end ? "–" + e.end : ""}` : "時間未定";
+      const confirming = state.confirmDel === e.id;
+      return h("li", { class: "ev" },
+        h("div", { class: "line1" }, h("span", { class: "tag", style: `--kc:var(--k-${e.kind})` }, kindOf(e.kind).label),
+          h("span", { class: "time" }, time)),
+        h("div", { class: "title" }, e.title),
+        e.place ? h("div", { class: "meta" }, "場所: " + e.place) : null,
+        e.memo ? h("div", { class: "meta" }, e.memo) : null,
+        state.canWrite ? h("div", { class: "acts" },
+          confirming ? [
+            h("span", { class: "q" }, "この予定を削除しますか？"),
+            h("button", { class: "btn", type: "button", onclick: () => { state.confirmDel = null; renderSheet(); } }, "やめる"),
+            h("button", { class: "btn danger", type: "button", onclick: () => removeEvent(e.id) }, "削除する"),
+          ] : [
+            h("button", { class: "btn ghost", type: "button", onclick: () => openForm(e) }, "編集"),
+            h("button", { class: "btn ghost", type: "button", onclick: () => { state.confirmDel = e.id; renderSheet(); } }, "削除"),
+          ]) : null,
+      );
+    }));
+    if (!evs.length && !state.editing) list.append(h("li", {}, h("p", { class: "empty" }, "この日の予定はまだありません。")));
+    $("#add-ev").hidden = !state.canWrite || !!state.editing;
+    $("#ev-form").hidden = !state.editing;
+  }
+
+  function renderUpcoming() {
+    const t = todayStr();
+    const items = state.events.filter((e) => e.date >= t)
+      .sort((a, b) => a.date.localeCompare(b.date) || (a.start || "99").localeCompare(b.start || "99")).slice(0, 6);
+    $("#up-empty").hidden = items.length > 0;
+    $("#upcoming").replaceChildren(...items.map((e) => {
+      const d = toDate(e.date);
+      return h("li", {}, h("button", { type: "button", onclick: () => goTo(e.date) },
+        h("span", { class: "d" }, `${d.getMonth() + 1}/${pad(d.getDate())}(${WD[d.getDay()]}) ${e.start || ""}`),
+        h("span", { class: "tag", style: `--kc:var(--k-${e.kind})` }, kindOf(e.kind).label),
+        h("span", { class: "t" }, e.title + (e.place ? ` ・ ${e.place}` : ""))));
+    }));
+  }
+
+  /* ---------- actions ---------- */
+  function goTo(date) {
+    const d = toDate(date);
+    state.y = d.getFullYear(); state.m = d.getMonth(); state.sel = date;
+    closeForm(); renderAll();
+  }
+  function shiftMonth(delta) {
+    const d = new Date(state.y, state.m + delta, 1);
+    state.y = d.getFullYear(); state.m = d.getMonth();
+    const t = todayStr();
+    state.sel = (t.slice(0, 7) === ymd(state.y, state.m, 1).slice(0, 7)) ? t : ymd(state.y, state.m, 1);
+    closeForm(); renderAll();
+  }
+  async function setMark(date, mid, mark) {
+    if (!state.canWrite) return;
+    try { await store.setMark(date, mid, mark); } catch (e) { writeFailed(e); }
+  }
+  function openForm(ev) {
+    state.editing = ev ? ev.id : "new"; state.confirmDel = null;
+    const sel = $("#ev-kind");
+    if (!sel.options.length) KINDS.forEach((k) => sel.append(h("option", { value: k.id }, k.label)));
+    $("#ev-title").value = ev ? ev.title : "";
+    sel.value = ev ? ev.kind : "reh";
+    $("#ev-date").value = ev ? ev.date : state.sel;
+    $("#ev-start").value = ev ? ev.start : "";
+    $("#ev-end").value = ev ? ev.end : "";
+    $("#ev-place").value = ev ? ev.place : "";
+    $("#ev-memo").value = ev ? ev.memo : "";
+    renderSheet();
+    $("#ev-title").focus();
+  }
+  function closeForm() { state.editing = null; state.confirmDel = null; }
+  async function submitEvent(e) {
+    e.preventDefault();
+    const date = $("#ev-date").value;
+    const title = $("#ev-title").value.trim();
+    if (!title || !isDate(date)) { toast("タイトルと日付を入れてください。"); return; }
+    const ev = {
+      title, date, kind: $("#ev-kind").value, start: $("#ev-start").value, end: $("#ev-end").value,
+      place: $("#ev-place").value.trim(), memo: $("#ev-memo").value.trim(), updatedBy: state.me || "",
+    };
+    if (state.editing && state.editing !== "new") ev.id = state.editing;
+    $("#ev-save").disabled = true;
+    try {
+      await store.saveEvent(ev);
+      closeForm(); toast("予定を保存しました。");
+      if (date !== state.sel) goTo(date); else renderAll();
+    } catch (err) { writeFailed(err); }
+    finally { $("#ev-save").disabled = false; }
+  }
+  async function removeEvent(id) {
+    try { await store.deleteEvent(id); state.confirmDel = null; toast("予定を削除しました。"); renderAll(); }
+    catch (e) { writeFailed(e); }
+  }
+  function fillBandForm() {
+    $("#bf-name").value = (state.cfg && str(state.cfg.name, 60)) || "";
+    const list = (state.cfg && state.cfg.members) || [];
+    for (const id of SLOTS) {
+      const m = list.find((x) => x && x.id === id) || {};
+      $(`#bf-${id}-name`).value = str(m.name, 30);
+      $(`#bf-${id}-part`).value = str(m.part, 20);
+    }
+    const editing = !!state.cfg;
+    $("#setup-title").textContent = editing ? "メンバー設定" : "バンドを登録";
+    $("#setup-lead").textContent = editing
+      ? "名前やパートを変えると、全員の画面に反映されます。名前を空にしたメンバーはカレンダーに表示されなくなります。"
+      : "バンド名と4人の名前を入れると、カレンダーが使えるようになります。あとから「メンバー設定」で変更できます。";
+    $("#bf-cancel").hidden = !editing;
+  }
+  async function submitBand(e) {
+    e.preventDefault();
+    const cfg = {
+      name: $("#bf-name").value.trim() || "バンド",
+      members: SLOTS.map((id) => ({ id, name: $(`#bf-${id}-name`).value.trim(), part: $(`#bf-${id}-part`).value.trim() })),
+    };
+    if (!cfg.members.some((m) => m.name)) { toast("メンバーの名前を1人以上入れてください。"); return; }
+    $("#bf-save").disabled = true;
+    try { await store.saveCfg(cfg); state.settingsOpen = false; toast("保存しました。"); renderAll(); }
+    catch (err) { writeFailed(err); }
+    finally { $("#bf-save").disabled = false; }
+  }
+
+  /* ---------- wiring ---------- */
+  $("#prev").addEventListener("click", () => shiftMonth(-1));
+  $("#next").addEventListener("click", () => shiftMonth(1));
+  $("#today").addEventListener("click", () => goTo(todayStr()));
+  $("#paint").addEventListener("click", () => { state.paint = !state.paint; renderAll(); });
+  $("#add-ev").addEventListener("click", () => openForm(null));
+  $("#ev-cancel").addEventListener("click", () => { closeForm(); renderSheet(); });
+  $("#ev-form").addEventListener("submit", submitEvent);
+  $("#band-form").addEventListener("submit", submitBand);
+  $("#bf-cancel").addEventListener("click", () => { state.settingsOpen = false; renderAll(); });
+  $("#open-settings").addEventListener("click", () => {
+    state.settingsOpen = true; fillBandForm(); renderAll(); $("#bf-name").focus();
+  });
+  $("#me-select").addEventListener("change", (e) => {
+    state.me = e.target.value || null; lsSet(LS_ME, state.me); renderAll();
+  });
+  $("#grid").addEventListener("click", (e) => {
+    const cell = e.target.closest(".cell");
+    if (!cell) return;
+    const ds = cell.dataset.date;
+    if (state.paint && state.canWrite) {
+      if (!state.me) { toast("先に「わたしは」で自分の名前を選んでください。"); return; }
+      const cur = markFor(ds, state.me);
+      const nextMark = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
+      state.sel = ds;
+      setMark(ds, state.me, nextMark);
+      renderAll();
+      return;
+    }
+    const d = toDate(ds);
+    if (d.getMonth() !== state.m) { goTo(ds); return; }
+    state.sel = ds; closeForm(); renderGrid(); renderSheet();
+    if (window.matchMedia("(max-width:900px)").matches) $("#sheet").scrollIntoView({ behavior: "smooth", block: "start" });
+  });
+
+  /* ---------- boot ---------- */
+  async function boot() {
+    let db = null, user = null;
+    if (window.claude && typeof window.claude.use === "function") {
+      try { [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]); } catch {}
+    }
+    if (db) {
+      store = makeDbStore(db); state.mode = "shared";
+      try { const can = user ? await user.can("data.write") : null; state.canWrite = can !== false; } catch {}
+    } else {
+      store = makeLocalStore(); state.mode = "local";
+    }
+    store.watchCfg((cfg) => {
+      state.cfg = cfg && typeof cfg === "object" ? cfg : null;
+      state.cfgLoaded = true;
+      if (!state.cfg || !state.settingsOpen) fillBandForm();
+      renderAll();
+    });
+    store.watchEvents((list) => { setEvents(list); if (state.cfg) { renderGrid(); renderSheet(); renderUpcoming(); } });
+    store.watchAvail((list) => { setAvail(list); if (state.cfg) { renderGrid(); renderSheet(); } });
+  }
+  renderAll();
+  boot();
+})();
+</script>
