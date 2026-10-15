@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#bfe3ff">
+<title>今日のタワー</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<link rel="stylesheet" href="/src/style.css">
+</head>
+<body>
+<div id="app">
+  <canvas id="stage"></canvas>
+  <div class="hud">
+    <div class="pill" id="hud-count">0 / 20</div>
+    <div class="pill pill-big" id="hud-height">0<small>cm</small></div>
+  </div>
+  <div class="hint" id="hint">ドラッグで移動・タップで回転・はなすと落下</div>
+  <div class="overlay" id="overlay" hidden></div>
+</div>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
