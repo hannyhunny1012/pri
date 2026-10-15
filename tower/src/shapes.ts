@@ -4,13 +4,13 @@ const { Bodies, Body, Vertices } = Matter;
 
 /** ブロックの色。シェア文の絵文字と 1 対 1 で対応する */
 export const COLORS = [
-  { fill: '#ff6b81', edge: '#c2405a', emoji: '🟥' },
-  { fill: '#ffa94d', edge: '#c9741c', emoji: '🟧' },
-  { fill: '#ffd43b', edge: '#c49a00', emoji: '🟨' },
-  { fill: '#69db7c', edge: '#2f9e44', emoji: '🟩' },
-  { fill: '#4dabf7', edge: '#1c7ed6', emoji: '🟦' },
-  { fill: '#b197fc', edge: '#7048e8', emoji: '🟪' },
-  { fill: '#d4a373', edge: '#9c6644', emoji: '🟫' },
+  { fill: '#ff5d7a', light: '#ff9aac', edge: '#b8304d', emoji: '🟥' },
+  { fill: '#ff9a3c', light: '#ffc58a', edge: '#b9621a', emoji: '🟧' },
+  { fill: '#ffcf2e', light: '#ffe68a', edge: '#b38b00', emoji: '🟨' },
+  { fill: '#4fd27a', light: '#98ebb1', edge: '#23884a', emoji: '🟩' },
+  { fill: '#3ea2f5', light: '#8fcbff', edge: '#1765b8', emoji: '🟦' },
+  { fill: '#a07cfa', light: '#cbb6ff', edge: '#6136cf', emoji: '🟪' },
+  { fill: '#c98d5a', light: '#e6bb93', edge: '#8a5530', emoji: '🟫' },
 ] as const;
 
 type Pt = [number, number];
@@ -128,7 +128,7 @@ export function createBlockBody(spec: BlockSpec): Matter.Body {
       const centre = Vertices.centre(verts);
       parts.push(Body.create({ ...BODY_OPTS, position: centre, vertices: verts }));
     } else {
-      parts.push(Bodies.circle(p.x * c, p.y * c, p.r * c, BODY_OPTS, 20));
+      parts.push(Bodies.circle(p.x * c, p.y * c, p.r * c, BODY_OPTS, 30));
     }
   }
   const body = parts.length === 1 ? parts[0] : Body.create({ ...BODY_OPTS, parts });

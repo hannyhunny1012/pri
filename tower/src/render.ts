@@ -23,14 +23,24 @@ export class Renderer {
     this.resize();
   }
 
+  /**
+   * 表示サイズに合わせて canvas の解像度を合わせ直す。
+   * アプリ内ブラウザなどは読み込み後に表示サイズが変わることがあり、
+   * 合わせないと引き伸ばされて縦長・ぼやけて見えるので毎フレーム確認する
+   */
   resize() {
-    const rect = this.canvas.getBoundingClientRect();
-    this.dpr = Math.min(window.devicePixelRatio || 1, 3);
-    this.w = rect.width;
-    this.h = rect.height;
-    this.canvas.width = Math.round(rect.width * this.dpr);
-    this.canvas.height = Math.round(rect.height * this.dpr);
-    this.scale = this.w / WORLD_W;
+    const w = this.canvas.clientWidth;
+    const h = this.canvas.clientHeight;
+    const dpr = Math.min(window.devicePixelRatio || 1, 3);
+    if (w === this.w && h === this.h && dpr === this.dpr) return;
+    this.w = w;
+    this.h = h;
+    this.dpr = dpr;
+    this.canvas.width = Math.max(1, Math.round(w * dpr));
+    this.canvas.height = Math.max(1, Math.round(h * dpr));
+    // 端数による拡大縮小のにじみを避けるため、実際の画素数から倍率を逆算する
+    this.dpr = this.canvas.width / Math.max(1, w);
+    this.scale = w / WORLD_W;
   }
 
   /** ズーム 1 のときの画面の高さ（ワールド単位） */
@@ -39,6 +49,7 @@ export class Renderer {
   }
 
   draw(game: Game, cam: Camera, shake = { x: 0, y: 0 }) {
+    this.resize();
     const { ctx } = this;
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     this.drawSky(cam);
@@ -144,45 +155,52 @@ export function drawBlock(ctx: CanvasRenderingContext2D, body: Matter.Body, alph
   const meta = blockMeta(body);
   const color = COLORS[meta.spec.color];
   const parts = body.parts.length > 1 ? body.parts.slice(1) : [body];
+  const b = body.bounds;
+  // 厚みの分だけ上下にずらして描き、物理上の位置とのずれを半分ずつにする
+  const depth = 3;
   ctx.globalAlpha = alpha;
   ctx.lineJoin = 'round';
 
-  // 1 回目: 太めの縁取り / 2 回目: 塗り（パーツ同士の継ぎ目は塗りで隠れる）
+  // 厚み（下にずらした濃い色のシルエット）でおもちゃのブロックらしい立体感を出す
+  ctx.save();
+  ctx.translate(0, depth / 2);
+  unionPath(ctx, parts);
+  ctx.fillStyle = color.edge;
   ctx.strokeStyle = color.edge;
-  ctx.lineWidth = 3.2;
-  for (const p of parts) {
-    pathVerts(ctx, p.vertices);
-    ctx.stroke();
-  }
-  ctx.fillStyle = color.fill;
-  for (const p of parts) {
-    pathVerts(ctx, p.vertices);
-    ctx.fill();
-  }
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  ctx.fill();
+  ctx.restore();
 
-  // ハイライト
-  ctx.fillStyle = 'rgba(255,255,255,0.35)';
-  for (const p of parts) {
-    const b = p.bounds;
-    ctx.beginPath();
-    ctx.ellipse(
-      b.min.x + (b.max.x - b.min.x) * 0.3,
-      b.min.y + (b.max.y - b.min.y) * 0.28,
-      Math.max(1, (b.max.x - b.min.x) * 0.12),
-      Math.max(1, (b.max.y - b.min.y) * 0.07),
-      -0.5,
-      0,
-      Math.PI * 2,
-    );
-    ctx.fill();
-  }
+  ctx.save();
+  ctx.translate(0, -depth / 2);
+  // 縁取り（パーツをまとめた 1 本のパスなので継ぎ目が出ない）
+  unionPath(ctx, parts);
+  ctx.strokeStyle = color.edge;
+  ctx.lineWidth = 3;
+  ctx.stroke();
+
+  // 上向きの辺に細いつやを残しつつ、上が明るいグラデーションで塗る
+  ctx.save();
+  ctx.clip();
+  ctx.fillStyle = 'rgba(255,255,255,0.85)';
+  ctx.fill();
+  ctx.translate(0, 2.6);
+  const g = ctx.createLinearGradient(0, b.min.y, 0, b.max.y);
+  g.addColorStop(0, color.light);
+  g.addColorStop(0.6, color.fill);
+  g.addColorStop(1, color.fill);
+  unionPath(ctx, parts);
+  ctx.fillStyle = g;
+  ctx.fill();
+  ctx.restore();
 
   // 顔
   const cos = Math.cos(body.angle);
   const sin = Math.sin(body.angle);
   const fx = body.position.x + meta.face.x * cos - meta.face.y * sin;
   const fy = body.position.y + meta.face.x * sin + meta.face.y * cos;
-  const k = meta.spec.cell / 22;
+  const k = meta.spec.cell / 19;
   ctx.save();
   ctx.translate(fx, fy);
   ctx.rotate(body.angle);
@@ -204,15 +222,20 @@ export function drawBlock(ctx: CanvasRenderingContext2D, body: Matter.Body, alph
   ctx.ellipse(7.5, 2.5, 2.4, 1.4, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.restore();
+  ctx.restore();
 
   ctx.globalAlpha = 1;
 }
 
-function pathVerts(ctx: CanvasRenderingContext2D, verts: Matter.Vector[]) {
+/** 全パーツを 1 本のパスにまとめる（nonzero で塗ると和集合になる） */
+function unionPath(ctx: CanvasRenderingContext2D, parts: Matter.Body[]) {
   ctx.beginPath();
-  ctx.moveTo(verts[0].x, verts[0].y);
-  for (let i = 1; i < verts.length; i++) ctx.lineTo(verts[i].x, verts[i].y);
-  ctx.closePath();
+  for (const p of parts) {
+    const v = p.vertices;
+    ctx.moveTo(v[0].x, v[0].y);
+    for (let i = 1; i < v.length; i++) ctx.lineTo(v[i].x, v[i].y);
+    ctx.closePath();
+  }
 }
 
 export function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
