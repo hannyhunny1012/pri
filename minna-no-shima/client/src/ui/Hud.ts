@@ -16,6 +16,7 @@ export class Hud {
   private invBox = this.woodEl.closest(".inv") as HTMLElement;
   private myTotalEl = $("my-total");
   private toasts = $("toasts");
+  private shareLink = $<HTMLAnchorElement>("share");
   private lastTowerCm = -1;
   private myName = "";
   private myTotalCm = 0;
@@ -33,7 +34,6 @@ export class Hud {
       b.addEventListener("click", () => onStamp(i));
       bar.appendChild(b);
     });
-    $("share").addEventListener("click", () => this.share());
     // スマホの小さい画面ではランキングを閉じた状態で始める
     if (window.innerWidth < 520) ($("ranking-box") as HTMLDetailsElement).open = false;
   }
@@ -45,6 +45,7 @@ export class Hud {
   setTower(cm: number): void {
     this.towerCm = cm;
     if (cm === this.lastTowerCm) return;
+    this.updateShareLink();
     const grew = this.lastTowerCm >= 0 && cm > this.lastTowerCm;
     this.lastTowerCm = cm;
     this.towerEl.textContent = formatMeters(cm);
@@ -75,6 +76,7 @@ export class Hud {
   setMyTotal(cm: number): void {
     this.myTotalCm = cm;
     this.myTotalEl.textContent = formatMeters(cm);
+    this.updateShareLink();
   }
 
   setRanking(list: RankingEntry[]): void {
@@ -108,13 +110,15 @@ export class Hud {
     el.addEventListener("animationend", () => el.remove());
   }
 
-  private share(): void {
+  /** window.open が使えない環境もあるので、普通のリンクの href を更新しておく */
+  private updateShareLink(): void {
     const text =
       `🏝️ みんなの島で「みんなのタワー」に ${formatMeters(this.myTotalCm)}m 貢献しました！` +
       `\n現在のタワーは ${formatMeters(this.towerCm)}m 🗼\n#みんなの島`;
     const url = new URL("https://x.com/intent/post");
     url.searchParams.set("text", text);
-    url.searchParams.set("url", location.origin + location.pathname);
-    window.open(url.toString(), "_blank", "noopener");
+    const shareUrl = import.meta.env.VITE_SHARE_URL ?? location.origin + location.pathname;
+    if (shareUrl) url.searchParams.set("url", shareUrl);
+    this.shareLink.href = url.toString();
   }
 }

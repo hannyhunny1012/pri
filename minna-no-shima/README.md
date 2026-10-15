@@ -47,4 +47,5 @@ client/
 ```bash
 npm test           # ロジックのユニットテスト
 npm run build      # 型チェック + 本番ビルド（dist/ を静的ホスティングに置けば動く）
+npm run build:single  # Phaser 込みの1ファイル HTML（dist-single/）。スマホでの試遊用
 ```
