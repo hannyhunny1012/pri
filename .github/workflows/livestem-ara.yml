@@ -1,0 +1,155 @@
+name: LiveStem ARA
+
+on:
+  push:
+    paths:
+      - "livestem-ara/**"
+      - ".github/workflows/livestem-ara.yml"
+  pull_request:
+    paths:
+      - "livestem-ara/**"
+      - ".github/workflows/livestem-ara.yml"
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+    working-directory: livestem-ara
+
+env:
+  PLUGINVAL_STRICTNESS: 5
+
+jobs:
+  linux:
+    name: Linux (unit tests + sanitizers + VST3 checks)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build xvfb libasound2-dev libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxext-dev libxi-dev \
+            libxcomposite-dev libxrender-dev libgl1-mesa-dev
+
+      - name: Core tests (ASan + UBSan)
+        run: |
+          cmake -S . -B build-asan -G Ninja -DLIVESTEM_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Debug \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer"
+          cmake --build build-asan
+          ctest --test-dir build-asan --output-on-failure
+
+      - name: Core tests (TSan) + 60 s stress test at 1 s rewrites
+        run: |
+          cmake -S . -B build-tsan -G Ninja -DLIVESTEM_BUILD_PLUGIN=OFF -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS="-fsanitize=thread"
+          cmake --build build-tsan
+          ./build-tsan/tests/livestem_tests
+          ./build-tsan/tests/livestem_stress 60 1000
+
+      - name: Build plug-in and host test
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build --target LiveStemARA_VST3 livestem_ara_hosttest
+
+      - name: ARA host test
+        run: xvfb-run -a ./build/hosttest/livestem_ara_hosttest_artefacts/Release/livestem_ara_hosttest "build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3"
+
+      - name: pluginval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Linux.zip
+          unzip -q pluginval.zip
+          xvfb-run -a ./pluginval --strictness-level $PLUGINVAL_STRICTNESS --validate-in-process "build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3"
+
+  macos:
+    name: macOS (AU + VST3 Universal, auval, pluginval)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Ninja
+        run: brew install ninja || true
+
+      - name: Configure and build (Universal Binary)
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          cmake --build build --target LiveStemARA_AU LiveStemARA_VST3 livestem_tests livestem_stress livestem_ara_hosttest
+
+      - name: Unit tests and stress test
+        run: |
+          ctest --test-dir build --output-on-failure
+          ./build/tests/livestem_stress 30 1000
+
+      - name: Check architectures and sign (ad hoc)
+        run: |
+          AU="build/plugin/LiveStemARA_artefacts/Release/AU/LiveStem ARA.component"
+          VST3="build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3"
+          lipo -info "$AU/Contents/MacOS/LiveStem ARA"
+          lipo -info "$VST3/Contents/MacOS/LiveStem ARA"
+          codesign --force --deep --sign - "$AU"
+          codesign --force --deep --sign - "$VST3"
+
+      - name: ARA host test (VST3)
+        run: ./build/hosttest/livestem_ara_hosttest_artefacts/Release/livestem_ara_hosttest "build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3"
+
+      - name: auval
+        run: |
+          mkdir -p ~/Library/Audio/Plug-Ins/Components
+          cp -R "build/plugin/LiveStemARA_artefacts/Release/AU/LiveStem ARA.component" ~/Library/Audio/Plug-Ins/Components/
+          killall -9 AudioComponentRegistrar || true
+          sleep 5
+          auval -a | grep -i livestem || true
+          auval -strict -v aufx Lsta Lvsm
+
+      - name: pluginval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level $PLUGINVAL_STRICTNESS --validate-in-process "build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3"
+          ./pluginval.app/Contents/MacOS/pluginval --strictness-level $PLUGINVAL_STRICTNESS --validate-in-process ~/Library/Audio/Plug-Ins/Components/"LiveStem ARA.component"
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent "build/plugin/LiveStemARA_artefacts/Release/AU/LiveStem ARA.component" "dist/LiveStemARA-macOS-AU.zip"
+          ditto -c -k --keepParent "build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3" "dist/LiveStemARA-macOS-VST3.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiveStemARA-macOS
+          path: livestem-ara/dist/*.zip
+
+  windows:
+    name: Windows (VST3 x64, pluginval)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure and build
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+          cmake --build build --config Release --target LiveStemARA_VST3 livestem_tests livestem_stress livestem_ara_hosttest
+
+      - name: Unit tests and stress test
+        run: |
+          ctest --test-dir build -C Release --output-on-failure
+          ./build/tests/Release/livestem_stress.exe 30 1000
+
+      - name: ARA host test (VST3)
+        run: ./build/hosttest/livestem_ara_hosttest_artefacts/Release/livestem_ara_hosttest.exe "build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3"
+
+      - name: pluginval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+          7z x -y pluginval.zip > /dev/null
+          ./pluginval.exe --strictness-level $PLUGINVAL_STRICTNESS --validate-in-process "build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3"
+
+      - name: Package
+        run: |
+          mkdir -p dist
+          7z a "dist/LiveStemARA-Windows-VST3.zip" "./build/plugin/LiveStemARA_artefacts/Release/VST3/LiveStem ARA.vst3" > /dev/null
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LiveStemARA-Windows
+          path: livestem-ara/dist/*.zip
