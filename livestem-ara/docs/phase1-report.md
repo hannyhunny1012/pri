@@ -13,7 +13,7 @@
 
 凡例：○ 合格／× 不合格／— 未検証
 
-| # | 検証項目 | 疑似ARAホスト（Linux, VST3） | Logic Pro | Studio One | 補足 |
+| # | 検証項目 | 疑似ARAホスト（VST3：Linux／macOS／Windows） | Logic Pro | Studio One | 補足 |
 | --- | --- | --- | --- | --- | --- |
 | 1 | 再生中にWAVを差し替えると、開き直しなしで新しい内容が鳴る | ○（書き込み完了から約1秒） | — | — | 遅延の内訳：書き込み完了判定の待ち500ms＋ポーリング間隔最大500ms |
 | 2 | 差し替え時にノイズやドロップアウトが出ない | ○（ストレステスト：ブロック途中での混在0件） | — | — | 差し替えはブロック境界で一度に切り替わる。新旧の音が大きく違えば、その境界の段差はクリックとして聞こえうる（クロスフェードはしていない） |
@@ -41,9 +41,14 @@
 | 単体テスト（35ケース） | Linux（ASan／UBSan、TSan） | ○ |
 | ストレステスト（再生中に書き換え続ける） | Linux（ASan／TSan） | ○（ブロック途中での混在0件、古いバッファは全て解放） |
 | pluginval 厳しさ5／8 | Linux（VST3） | ○ |
-| ビルド・単体テスト・pluginval・auval・疑似ホスト | macOS（Universal）／Windows | GitHub Actions で実行（結果は下記） |
+| ビルド・単体テスト・ストレステスト（30秒）・疑似ホスト・pluginval 厳しさ5 | macOS 14（AU＋VST3、arm64＋x86_64） | ○ |
+| `auval -strict -v aufx Lsta Lvsm` | macOS 14 | ○（AU VALIDATION SUCCEEDED） |
+| ビルド・単体テスト・ストレステスト（30秒）・疑似ホスト・pluginval 厳しさ5 | Windows Server 2022（VST3 x64） | ○ |
+| 単体テスト（ASan／UBSan、TSan）・ストレステスト（60秒、1秒ごとの書き換え）・疑似ホスト・pluginval | Ubuntu 24.04 | ○ |
 
-GitHub Actions の結果：（実行後に追記）
+GitHub Actions の初回実行（2026-10-17）で、3つのOSのジョブがすべて成功しました。macOS と Windows のビルド済みプラグインは、Actions の成果物（`LiveStemARA-macOS`、`LiveStemARA-Windows`）からダウンロードできます。
+
+疑似ARAホストのテストは、Linux に加えて macOS と Windows でも同じ内容で合格しています（VST3）。
 
 ## 実装上の判断（フェーズ2で見直す可能性があるもの）
 
